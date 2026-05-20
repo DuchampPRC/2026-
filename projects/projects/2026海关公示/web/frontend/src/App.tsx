@@ -493,13 +493,13 @@ function AppContent() {
   const schoolsState = useFetch<any[]>(`${API_BASE}/schools?top=50`)
   const positionsState = useFetch<PositionAnalysis>(`${API_BASE}/positions/analysis`)
 
-  // 等待所有主要数据加载完成
+  // 主要数据（overview + districts）加载完成后就显示，schools/positions 可后续加载
   useEffect(() => {
-    if (overviewState.data && districtsState.data && schoolsState.data && positionsState.data) {
+    if (overviewState.data && districtsState.data) {
       const timer = setTimeout(() => setIsReady(true), 100)
       return () => clearTimeout(timer)
     }
-  }, [overviewState.data, districtsState.data, schoolsState.data, positionsState.data])
+  }, [overviewState.data, districtsState.data])
 
   const searchParams = new URLSearchParams()
   Object.entries(filters).forEach(([k, v]) => v && searchParams.set(k, v))
