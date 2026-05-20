@@ -27,6 +27,16 @@
 - **前端**：`web/frontend/` → `pnpm build`
 - **数据文件**：`output/2026/2026海关公示汇总.csv`
 
+## 预览链路
+- **类型**：Web 预览型项目
+- **入口**：`/workspace/projects/.coze`（根 `.coze`）
+- **子项目**：`/workspace/projects/2026海关公示/.coze`
+- **预览命令**：
+  - Build：`bash 2026海关公示/scripts/coze-preview-build.sh`
+  - Run：`bash 2026海关公示/scripts/coze-preview-run.sh`
+- **端口**：5000（IPv4 全接口 `0.0.0.0:5000`）
+- **技术说明**：后端 FastAPI 同时提供静态文件服务，预览时无需独立前端服务
+
 ## API 端点
 | 端点 | 说明 |
 |------|------|
