@@ -27,6 +27,7 @@
 2026海关公示/
 ├── customs_pipeline/      # 核心处理模块
 │   ├── config.py          # 路径配置（支持按年份目录）
+│   ├── constants.py       # 共享常量（关区URL、高校名单等）
 │   ├── crawler.py         # 网站爬取
 │   ├── converter.py       # doc转docx
 │   ├── extractor.py       # 信息提取
@@ -36,6 +37,7 @@
 │   └── cleanup.py         # 临时文件清理
 ├── web/
 │   ├── api.py             # FastAPI后端
+│   ├── schemas.py         # Pydantic 数据模型
 │   ├── requirements.txt   # 后端依赖
 │   ├── frontend/          # React前端
 │   │   ├── src/
@@ -136,3 +138,51 @@ CSV包含以下字段：
 **前后端端口**
 - 预览：FastAPI 托管静态文件，统一 5000 端口
 - 开发：前端 Vite 代理 /api 到后端
+
+## 代码优化记录
+
+### 健壮性优化
+
+**api.py**
+- 修复 FastAPI 应用重复定义问题（删除第二个 `app = FastAPI()`）
+- 添加数据加载验证：启动时检查必需列是否存在
+- 添加健康检查接口 `/api/health`
+- 改进错误处理：使用空 DataFrame 防止启动失败
+- 添加 `ensure_int()` 辅助函数防止类型转换错误
+- 修复路由顺序：`/{full_path:path}` 放在所有 API 路由之后
+
+**schemas.py**
+- 使用 Pydantic v2 `Annotated` 添加字段验证
+- 添加 `field_validator` 验证输入参数
+- 添加 `HealthResponse` schema
+- 增强默认值处理
+
+**config.py**
+- 使用 `pathlib.Path` 替代 `os.path`
+- 使用 `Final` 类型注解确保常量不可变
+- 添加 `ensure_dir()` 和 `validate_year()` 工具函数
+- 统一使用 Path 类型
+
+**extractor.py**
+- 预编译正则表达式，提升性能
+- 抽取列名映射配置，支持多种表头命名
+- 添加 `should_skip_name()` 辅助函数
+- 添加 `build_column_map()` 列映射构建函数
+- 改进异常处理和日志输出
+
+### 可复用性优化
+
+**新增 constants.py**
+- 统一管理所有共享常量
+- 985/211 高校名单
+- 海关关区 URL 映射
+- 职位级别匹配模式
+- 预编译正则表达式
+- 提供 `classify_school()`, `extract_level()`, `get_district_url()` 等工具函数
+
+**启动脚本**
+- 添加 `PYTHONPATH` 环境变量设置
+- 确保 `customs_pipeline` 模块可正确导入
+
+### 技术债务
+- 保留 api.py 中部分未使用的 import（DISTRICT_URLS 等），避免破坏现有调用链

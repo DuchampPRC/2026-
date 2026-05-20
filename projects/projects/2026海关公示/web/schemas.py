@@ -1,11 +1,26 @@
-"""Pydantic v2 schemas for API request/response validation."""
+"""
+Pydantic v2 schemas for API request/response validation.
+"""
 
-from typing import Optional
-from pydantic import BaseModel, Field
+from typing import Annotated, Optional
 
+from pydantic import BaseModel, Field, field_validator
+
+
+# =============================================================================
+# Common Fields
+# =============================================================================
+
+IntRange = Annotated[int, Field(ge=1, le=1000, description="整数范围限制")]
+PageSize = Annotated[int, Field(ge=1, le=100, description="分页大小")]
+
+
+# =============================================================================
+# Search Schemas
+# =============================================================================
 
 class SearchParams(BaseModel):
-    """Search query parameters."""
+    """搜索查询参数。"""
     name: Optional[str] = Field(default=None, description="姓名关键字，支持空格分隔多关键字AND搜索")
     school: Optional[str] = Field(default=None, description="毕业院校关键字")
     position: Optional[str] = Field(default=None, description="职位关键字")
@@ -15,109 +30,130 @@ class SearchParams(BaseModel):
     page: int = Field(default=1, ge=1, description="页码")
     page_size: int = Field(default=20, ge=1, le=100, description="每页数量")
 
+    @field_validator("page", "page_size", mode="before")
+    @classmethod
+    def validate_positive_int(cls, v):
+        if v is None:
+            return 1
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return 1
+
+
+# =============================================================================
+# Response Schemas
+# =============================================================================
 
 class OverviewResponse(BaseModel):
-    """Overview statistics response."""
-    total: int
-    districts: int
-    schools: int
-    positions: int
+    """总体统计数据响应。"""
+    total: int = Field(..., description="总录用人数")
+    districts: int = Field(..., description="关区数量")
+    schools: int = Field(..., description="院校数量")
+    positions: int = Field(..., description="职位数量")
 
 
 class DistrictInfo(BaseModel):
-    """Single district information."""
-    关区: str
-    人数: int
-    官网: Optional[str] = None
+    """单个关区信息。"""
+    关区: str = Field(..., description="关区名称")
+    人数: int = Field(..., description="录用人数")
+    官网: Optional[str] = Field(default=None, description="关区官网地址")
 
 
 class DistrictsResponse(BaseModel):
-    """Districts list response."""
-    districts: list[DistrictInfo]
+    """关区列表响应。"""
+    districts: list[DistrictInfo] = Field(default_factory=list)
 
 
 class SchoolInfo(BaseModel):
-    """Single school information."""
-    毕业院校: str
-    人数: int
+    """单个院校信息。"""
+    毕业院校: str = Field(..., description="毕业院校名称")
+    人数: int = Field(..., description="录用人数")
 
 
 class EducationStat(BaseModel):
-    """Education distribution stat."""
-    name: str
-    value: int
+    """学历分布统计。"""
+    name: str = Field(..., description="学历名称")
+    value: int = Field(..., description="人数")
 
 
 class GenderStat(BaseModel):
-    """Gender distribution stat."""
-    name: str
-    value: int
+    """性别分布统计。"""
+    name: str = Field(..., description="性别")
+    value: int = Field(..., description="人数")
 
 
 class PositionStat(BaseModel):
-    """Position stat with count."""
-    name: str
-    count: int
+    """职位统计。"""
+    name: str = Field(..., description="职位名称")
+    count: int = Field(..., description="人数")
 
 
 class DistrictDetailResponse(BaseModel):
-    """District detail response."""
-    district: str
-    total: int
-    male: int
-    female: int
-    education: list[EducationStat]
-    gender: list[GenderStat]
-    top_positions: list[PositionStat]
-    top_schools: list[SchoolInfo]
+    """关区详情响应。"""
+    district: str = Field(..., description="关区名称")
+    total: int = Field(..., description="总人数")
+    male: int = Field(default=0, description="男性人数")
+    female: int = Field(default=0, description="女性人数")
+    education: list[EducationStat] = Field(default_factory=list, description="学历分布")
+    gender: list[GenderStat] = Field(default_factory=list, description="性别分布")
+    top_positions: list[PositionStat] = Field(default_factory=list, description="热门职位 Top5")
+    top_schools: list[SchoolInfo] = Field(default_factory=list, description="来源院校 Top5")
 
 
 class JobTypeCount(BaseModel):
-    """Job type count."""
-    name: str
-    value: int
+    """职位类型统计。"""
+    name: str = Field(..., description="职位类型")
+    value: int = Field(..., description="人数")
 
 
 class LevelCount(BaseModel):
-    """Level distribution count."""
-    name: str
-    value: int
+    """级别分布统计。"""
+    name: str = Field(..., description="级别")
+    value: int = Field(..., description="人数")
 
 
 class SubDistrictCount(BaseModel):
-    """Sub-district count."""
-    name: str
-    value: int
+    """子关区统计。"""
+    name: str = Field(..., description="关区名称")
+    value: int = Field(..., description="人数")
 
 
 class PositionAnalysisResponse(BaseModel):
-    """Position analysis response."""
-    total_positions: int
-    job_type_counts: dict[str, int]
-    level_counts: dict[str, int]
-    sub_district_counts: dict[str, int]
+    """职位分析响应。"""
+    total_positions: int = Field(..., description="职位总数")
+    job_type_counts: dict[str, int] = Field(default_factory=dict, description="职位类型统计")
+    level_counts: dict[str, int] = Field(default_factory=dict, description="级别分布统计")
+    sub_district_counts: dict[str, int] = Field(default_factory=dict, description="关区分布统计")
 
 
 class SearchResultItem(BaseModel):
-    """Single search result item."""
-    姓名: str
-    性别: Optional[str] = None
-    毕业院校: Optional[str] = None
-    学历: Optional[str] = None
-    关区: Optional[str] = None
-    职位: Optional[str] = None
-    隶属海关: Optional[str] = None
+    """搜索结果项。"""
+    姓名: str = Field(default="", description="姓名")
+    性别: Optional[str] = Field(default=None, description="性别")
+    毕业院校: Optional[str] = Field(default=None, description="毕业院校")
+    学历: Optional[str] = Field(default=None, description="学历")
+    关区: Optional[str] = Field(default=None, description="关区")
+    职位: Optional[str] = Field(default=None, description="拟录用职位")
+    隶属海关: Optional[str] = Field(default=None, description="隶属海关")
 
 
 class SearchResponse(BaseModel):
-    """Search results response."""
-    items: list[SearchResultItem]
-    total: int
-    page: int
-    page_size: int
-    total_pages: int
+    """搜索响应。"""
+    items: list[SearchResultItem] = Field(default_factory=list)
+    total: int = Field(default=0, description="总记录数")
+    page: int = Field(default=1, description="当前页码")
+    page_size: int = Field(default=20, description="每页数量")
+    total_pages: int = Field(default=0, description="总页数")
 
 
 class ErrorResponse(BaseModel):
-    """Error response schema."""
-    detail: str
+    """错误响应。"""
+    detail: str = Field(..., description="错误详情")
+
+
+class HealthResponse(BaseModel):
+    """健康检查响应。"""
+    status: str = Field(..., description="服务状态")
+    data_loaded: bool = Field(..., description="数据是否已加载")
+    record_count: int = Field(default=0, description="数据记录数")

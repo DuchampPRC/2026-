@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
+# 设置 PYTHONPATH 以支持 customs_pipeline 模块导入
+export PYTHONPATH="${PROJECT_DIR}:${PYTHONPATH:-}"
 export PORT=5000
 
 # 清理 5000 端口残留进程
