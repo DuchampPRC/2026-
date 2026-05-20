@@ -767,7 +767,7 @@ function AppContent() {
                           </td>
                           <td className="right fw600">{d.人数.toLocaleString()}</td>
                           <td className="center">
-                            {d.官网 && (
+                            {d.官网 ? (
                               <a 
                                 href={d.官网} 
                                 target="_blank" 
@@ -776,6 +776,8 @@ function AppContent() {
                               >
                                 访问 →
                               </a>
+                            ) : (
+                              <span style={{ color: '#999', fontSize: '12px' }}>暂无</span>
                             )}
                           </td>
                         </tr>

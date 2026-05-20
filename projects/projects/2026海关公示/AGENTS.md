@@ -57,7 +57,14 @@
 > - "XX海关海关YY" → 隶属关="XX海关"，职务职位="海关YY..."（保留职位中的"海关"前缀）
 > - "XX海关YY" → 隶属关="XX海关"，职务职位="YY..."
 | `extract_level(text)` | 提取职位级别（一级主办/二级主办等） | positions/analysis 接口 |
-| `filter_by_keywords(df, col, keywords)` | 关键字过滤，支持多关键字 AND | search 接口 |
+| `filter_by_keywords(df, col, keywords)` | 关键字过滤，支持多关键字 AND，使用 re.escape() 转义正则元字符防止注入 | search 接口 |
+| 职位搜索优化 | 纯数字输入 → 精确匹配职位代码；关键字输入 → 模糊匹配职务职位 | search 接口 position 参数 |
+
+### 新增接口
+
+| 接口 | 说明 | 参数 |
+|------|------|------|
+| `/api/export` | 导出筛选数据为 CSV/Excel | format(csv/xlsx), name, school, position, district, education, gender |
 | `ensure_int(val)` | 安全转换为整数 | 所有统计接口 |
 | `SAFE_DEFAULTS` | 各字段的安全默认值 | 数据加载时填充空值 |
 

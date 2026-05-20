@@ -8,12 +8,13 @@ import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from customs_pipeline.constants import (
@@ -162,15 +163,20 @@ def filter_by_keywords(df: pd.DataFrame, column: str, keywords: str) -> pd.DataF
 
     keywords = keywords.strip()
     
-    # 单关键字模式：直接使用 contains 匹配
-    if " " not in keywords:
-        return df[df[column].fillna("").str.contains(keywords, case=False, regex=True)]
+    # 使用 re.escape() 转义正则元字符，防止用户输入破坏正则表达式
+    # 例如：用户输入 "海关(北京)" 会被转义为 "海关\(北京\)"
+    escaped = re.escape(keywords)
+    
+    # 单关键字模式：直接使用 contains 匹配（转义后作为普通字符串）
+    if " " not in escaped:
+        return df[df[column].fillna("").str.contains(escaped, case=False, regex=True)]
 
     # 多关键字模式：AND 逻辑（所有关键字都必须匹配）
     # 1. 分割关键字
     # 2. 为每个关键字创建匹配掩码
     # 3. 使用 all(axis=1) 确保所有条件都满足
-    keyword_list = [kw.strip() for kw in keywords.split() if kw.strip()]
+    # 注意：转义后空格不会被改变，所以 split(" ") 仍然有效
+    keyword_list = [kw.strip() for kw in escaped.split(" ") if kw.strip()]
     if not keyword_list:
         return df
 
@@ -212,6 +218,140 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# =============================================================================
+# Exception Handlers - 友好错误页面
+# =============================================================================
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """自定义 HTTP 异常处理，返回友好 HTML 页面。"""
+    # API 请求返回 JSON
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": exc.detail}
+        )
+    
+    # 页面请求返回 HTML
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{exc.status_code} - 2026海关公示</title>
+        <style>
+            body {{ 
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                display: flex; 
+                justify-content: center; 
+                align-items: center; 
+                min-height: 100vh; 
+                margin: 0; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: #333;
+            }}
+            .error-container {{ 
+                text-align: center; 
+                background: white; 
+                padding: 48px; 
+                border-radius: 16px; 
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                max-width: 90%;
+            }}
+            .error-code {{ 
+                font-size: 72px; 
+                font-weight: 700; 
+                color: #667eea; 
+                margin: 0;
+            }}
+            .error-message {{ 
+                font-size: 18px; 
+                color: #666; 
+                margin: 16px 0 32px;
+            }}
+            .home-link {{ 
+                display: inline-block; 
+                padding: 12px 32px; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white; 
+                text-decoration: none; 
+                border-radius: 8px; 
+                font-weight: 500;
+                transition: transform 0.2s;
+            }}
+            .home-link:hover {{ transform: scale(1.05); }}
+        </style>
+    </head>
+    <body>
+        <div class="error-container">
+            <h1 class="error-code">{exc.status_code}</h1>
+            <p class="error-message">{exc.detail}</p>
+            <a href="/" class="home-link">返回首页</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content, status_code=exc.status_code)
+
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """通用异常处理。"""
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            status_code=500,
+            content={"error": "服务器内部错误，请稍后重试"}
+        )
+    
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>500 - 2026海关公示</title>
+        <style>
+            body { 
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                display: flex; 
+                justify-content: center; 
+                align-items: center; 
+                min-height: 100vh; 
+                margin: 0; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            }
+            .error-container { 
+                text-align: center; 
+                background: white; 
+                padding: 48px; 
+                border-radius: 16px; 
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            }
+            .error-code { font-size: 48px; color: #e53e3e; margin: 0; }
+            .error-message { color: #666; margin: 16px 0; }
+            .home-link { 
+                display: inline-block; 
+                padding: 12px 32px; 
+                background: #667eea; 
+                color: white; 
+                text-decoration: none; 
+                border-radius: 8px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="error-container">
+            <h1 class="error-code">500</h1>
+            <p class="error-message">服务器开小差了，请稍后重试</p>
+            <a href="/" class="home-link">返回首页</a>
+        </div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content, status_code=500)
 
 
 # =============================================================================
@@ -397,8 +537,22 @@ async def search(
     # 关键字搜索：支持模糊匹配 + 多关键字 AND
     df = filter_by_keywords(df, "姓名", name or "")
     df = filter_by_keywords(df, "毕业院校", school or "")
-    # 职位搜索使用原始字段（原字段包含隶属关+职位名，可同时搜索）
-    df = filter_by_keywords(df, "拟录用职位及代码", position or "")
+    
+    # 职位搜索优化：
+    # - 如果是纯数字（可能是职位代码），优先精确匹配职位代码
+    # - 否则使用模糊匹配（原字段包含隶属关+职位名）
+    if position:
+        position = position.strip()
+        # 检测是否为纯数字（可能是职位代码）
+        is_code = re.match(r'^[\d\s]+$', position)
+        if is_code:
+            # 纯数字搜索：精确匹配职位代码
+            code_keywords = position.split()
+            for code in code_keywords:
+                df = df[df["职位代码"].fillna("").str.contains(code, case=False)]
+        else:
+            # 普通关键字：模糊匹配原字段
+            df = filter_by_keywords(df, "拟录用职位及代码", position)
 
     # 精确匹配过滤
     if district:
@@ -441,6 +595,117 @@ async def search(
         page_size=page_size,
         total_pages=total_pages,
     )
+
+
+# =============================================================================
+# Export API - 数据导出
+# =============================================================================
+
+@app.get("/api/export", tags=["导出"])
+async def export_data(
+    name: str | None = Query(default=None, description="姓名关键字"),
+    school: str | None = Query(default=None, description="毕业院校关键字"),
+    position: str | None = Query(default=None, description="职位关键字"),
+    district: str | None = Query(default=None, description="关区名称"),
+    education: str | None = Query(default=None, description="学历"),
+    gender: str | None = Query(default=None, description="性别"),
+    format: str = Query(default="csv", pattern="^(csv|xlsx)$", description="导出格式：csv 或 xlsx"),
+) -> Response:
+    """
+    导出筛选后的数据为 CSV 或 Excel 文件。
+    
+    导出字段：姓名、性别、学历、毕业院校、关区、隶属关、职务职位、职位代码
+    
+    注意：
+    - 最大导出 10000 条记录
+    - 支持与搜索接口相同的筛选条件
+    """
+    df = get_df()
+
+    # 应用筛选条件（与 search 接口相同）
+    df = filter_by_keywords(df, "姓名", name or "")
+    df = filter_by_keywords(df, "毕业院校", school or "")
+    
+    # 职位搜索优化
+    if position:
+        position = position.strip()
+        is_code = re.match(r'^[\d\s]+$', position)
+        if is_code:
+            code_keywords = position.split()
+            for code in code_keywords:
+                df = df[df["职位代码"].fillna("").str.contains(code, case=False)]
+        else:
+            df = filter_by_keywords(df, "拟录用职位及代码", position)
+    
+    if district:
+        df = df[df["关区"] == district]
+    if education:
+        df = df[df["学历"] == education]
+    if gender:
+        df = df[df["性别"] == gender]
+
+    # 限制导出数量
+    max_export = 10000
+    if len(df) > max_export:
+        df = df.head(max_export)
+
+    # 选择导出的列
+    export_columns = ["姓名", "性别", "学历", "毕业院校", "关区", "隶属关", "职务职位", "职位代码"]
+    export_df = df[export_columns].copy()
+
+    # 生成文件
+    timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+    
+    if format == "csv":
+        # CSV 导出
+        content = export_df.to_csv(index=False, encoding="utf-8-sig")
+        filename = f"海关公示数据_{timestamp}.csv"
+        # 使用 RFC 5987 编码格式（filename*）支持中文
+        encoded_filename = quote(filename, safe='')
+        return Response(
+            content=content,
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
+        )
+    else:
+        # Excel 导出（需要 openpyxl）
+        try:
+            import io
+            from openpyxl import Workbook
+            from openpyxl.utils.dataframe import dataframe_to_rows
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "海关公示数据"
+
+            # 写入数据
+            for r_idx, row in enumerate(dataframe_to_rows(export_df, index=False, header=True), 1):
+                for c_idx, value in enumerate(row, 1):
+                    ws.cell(row=r_idx, column=c_idx, value=value)
+
+            # 保存到字节流
+            buffer = io.BytesIO()
+            wb.save(buffer)
+            buffer.seek(0)
+            content = buffer.getvalue()
+
+            filename = f"海关公示数据_{timestamp}.xlsx"
+            encoded_filename = quote(filename, safe='')
+            return Response(
+                content=content,
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
+            )
+        except ImportError:
+            # openpyxl 未安装，回退到 CSV
+            content = export_df.to_csv(index=False, encoding="utf-8-sig")
+            filename = f"海关公示数据_{timestamp}.csv"
+            encoded_filename = quote(filename, safe='')
+            return Response(
+                content=content,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
+            )
 
 
 # =============================================================================

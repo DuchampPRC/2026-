@@ -1215,6 +1215,46 @@ input:focus, button:focus, select:focus {
   }
 }
 
+/* 超小屏幕（< 480px）弹窗优化 */
+@media (max-width: 480px) {
+  .modal-backdrop { 
+    padding: 0;  /* 去掉边距，全屏展示 */
+    align-items: flex-start;
+  }
+  
+  .modal-content { 
+    width: 100%;
+    max-height: 100vh;  /* 占满整个屏幕高度 */
+    border-radius: 0;  /* 去掉圆角 */
+    padding: 16px; 
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .modal-header { 
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+  }
+
+  .modal-close {
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+  }
+
+  .modal-stats { 
+    grid-template-columns: repeat(3, 1fr);  /* 保持三列 */
+    gap: 8px;
+  }
+
+  .modal-stat { 
+    padding: 12px 4px;
+  }
+
+  .modal-stat-value { font-size: 20px; }
+  .modal-stat-label { font-size: 10px; }
+}
+
 /* ========================================
    动画
    ======================================== */
