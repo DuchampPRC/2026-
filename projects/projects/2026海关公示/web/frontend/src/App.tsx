@@ -486,11 +486,20 @@ function AppContent() {
   const [tab, setTab] = useState<TabType>('search')
   const [filters, setFilters] = useState({ name: '', school: '', position: '', district: '', education: '', gender: '' })
   const [searchKey, setSearchKey] = useState(0)
+  const [isReady, setIsReady] = useState(false)
 
   const overviewState = useFetch<Overview>(`${API_BASE}/overview`)
   const districtsState = useFetch<DistrictsResponse>(`${API_BASE}/districts`)
   const schoolsState = useFetch<any[]>(`${API_BASE}/schools?top=50`)
   const positionsState = useFetch<PositionAnalysis>(`${API_BASE}/positions/analysis`)
+
+  // 等待所有主要数据加载完成
+  useEffect(() => {
+    if (overviewState.data && districtsState.data && schoolsState.data && positionsState.data) {
+      const timer = setTimeout(() => setIsReady(true), 100)
+      return () => clearTimeout(timer)
+    }
+  }, [overviewState.data, districtsState.data, schoolsState.data, positionsState.data])
 
   const searchParams = new URLSearchParams()
   Object.entries(filters).forEach(([k, v]) => v && searchParams.set(k, v))
@@ -523,6 +532,15 @@ function AppContent() {
   const handleFilterChange = useCallback((k: string, v: string) => setFilters(f => ({ ...f, [k]: v })), [])
   const handleDistrictClick = useCallback((d: string) => { setDetailDistrict(d) }, [])
   const handleModalRetry = useCallback(() => { setDetailDistrict(''); setTimeout(() => setDetailDistrict(detailDistrict), 50) }, [detailDistrict])
+
+  // 初始加载时显示 loading
+  if (!isReady) {
+    return (
+      <div className="app">
+        <LoadingSpinner />
+      </div>
+    )
+  }
 
   return (
     <div className="app">
@@ -644,7 +662,7 @@ function AppContent() {
               {searchLoading && <LoadingSpinner />}
               {searchError && <ErrorMessage message={searchError} onRetry={handleSearch} />}
               
-              {search.data && (
+              {search?.data && (
                 <>
                   <p style={{ color: '#64748b', marginBottom: '16px' }}>
                     共找到 <strong style={{ color: '#0ea5e9' }}>{searchTotal.toLocaleString()}</strong> 条记录
@@ -699,7 +717,7 @@ function AppContent() {
               </div>
               {districts.loading && <LoadingSpinner />}
               {districts.error && <ErrorMessage message={districts.error} onRetry={() => {}} />}
-              {districts.data && (
+              {districts?.data && (
                 <div className="table-wrap">
                   <table className="data-table">
                     <thead>
@@ -747,7 +765,7 @@ function AppContent() {
                   毕业院校分布 Top50
                 </div>
               </div>
-              <SchoolPanel data={schools.data} loading={schools.loading} error={schools.error} onRetry={() => {}} />
+              <SchoolPanel data={schools?.data} loading={schoolsState?.loading ?? false} error={schoolsState?.error} onRetry={() => {}} />
             </>
           )}
 
@@ -759,7 +777,7 @@ function AppContent() {
                   职位分析
                 </div>
               </div>
-              <PositionPanel data={positions.data} loading={positions.loading} error={positions.error} onRetry={() => {}} />
+              <PositionPanel data={positions?.data} loading={positionsState?.loading ?? false} error={positionsState?.error} onRetry={() => {}} />
             </>
           )}
         </div>
