@@ -662,7 +662,7 @@ function AppContent() {
               {searchLoading && <LoadingSpinner />}
               {searchError && <ErrorMessage message={searchError} onRetry={handleSearch} />}
               
-              {search?.data && (
+              {search?.items && search?.items.length > 0 && (
                 <>
                   <p style={{ color: '#64748b', marginBottom: '16px' }}>
                     共找到 <strong style={{ color: '#0ea5e9' }}>{searchTotal.toLocaleString()}</strong> 条记录
@@ -715,9 +715,9 @@ function AppContent() {
                   各关区录用情况
                 </div>
               </div>
-              {districts.loading && <LoadingSpinner />}
-              {districts.error && <ErrorMessage message={districts.error} onRetry={() => {}} />}
-              {districts?.data && (
+              {districtsState.loading && <LoadingSpinner />}
+              {districtsState.error && <ErrorMessage message={districtsState.error} onRetry={() => {}} />}
+              {districtsData.length > 0 && (
                 <div className="table-wrap">
                   <table className="data-table">
                     <thead>
@@ -765,7 +765,7 @@ function AppContent() {
                   毕业院校分布 Top50
                 </div>
               </div>
-              <SchoolPanel data={schools?.data} loading={schoolsState?.loading ?? false} error={schoolsState?.error} onRetry={() => {}} />
+              <SchoolPanel data={schools} loading={schoolsState?.loading ?? false} error={schoolsState?.error} onRetry={() => {}} />
             </>
           )}
 
@@ -777,7 +777,7 @@ function AppContent() {
                   职位分析
                 </div>
               </div>
-              <PositionPanel data={positions?.data} loading={positionsState?.loading ?? false} error={positionsState?.error} onRetry={() => {}} />
+              <PositionPanel data={positions} loading={positionsState?.loading ?? false} error={positionsState?.error} onRetry={() => {}} />
             </>
           )}
         </div>
