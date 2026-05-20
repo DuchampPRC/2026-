@@ -52,6 +52,10 @@
 | 变量/函数 | 说明 | 使用场景 |
 |-----------|------|----------|
 | `parse_position_field(text)` | 解析职位字段，返回字典 {隶属关, 职务职位, 职位代码} | search、positions/analysis 接口 |
+
+> **算法说明**：找到所有"海关"的位置，使用倒数第二个"海关"作为分隔点。正确处理：
+> - "XX海关海关YY" → 隶属关="XX海关"，职务职位="海关YY..."（保留职位中的"海关"前缀）
+> - "XX海关YY" → 隶属关="XX海关"，职务职位="YY..."
 | `extract_level(text)` | 提取职位级别（一级主办/二级主办等） | positions/analysis 接口 |
 | `filter_by_keywords(df, col, keywords)` | 关键字过滤，支持多关键字 AND | search 接口 |
 | `ensure_int(val)` | 安全转换为整数 | 所有统计接口 |
