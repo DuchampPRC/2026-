@@ -1,0 +1,9 @@
+requests
+beautifulsoup4
+python-docx
+openpyxl
+pywin32
+pandas
+matplotlib
+seaborn
+jupyter

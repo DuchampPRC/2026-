@@ -1,0 +1,22 @@
+[project]
+requires = ["nodejs-24", "python-3.12"]
+project_type = "web"
+entrypoint = "projects/2026海关公示/web/api.py"
+
+[preview]
+preview_enable = "enabled"
+
+[dev]
+build = ["bash", "projects/2026海关公示/scripts/coze-preview-build.sh"]
+run = ["bash", "projects/2026海关公示/scripts/coze-preview-run.sh"]
+
+[deploy]
+build = ["bash", "projects/2026海关公示/scripts/coze-deploy-build.sh"]
+run = ["bash", "projects/2026海关公示/scripts/coze-deploy-run.sh"]
+
+[deploy.profile]
+kind = "service"
+flavor = "web"
+
+[subprojects]
+path = ["projects/2026海关公示"]
