@@ -7,7 +7,7 @@ cd "$PROJECT_DIR"
 
 echo "[build] 安装前端依赖..."
 cd web/frontend
-pnpm install
+pnpm install --no-frozen-lockfile 2>/dev/null || true
 
 echo "[build] 构建前端..."
 pnpm build
