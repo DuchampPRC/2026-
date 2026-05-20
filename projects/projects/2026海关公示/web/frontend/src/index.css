@@ -41,6 +41,24 @@
 }
 
 /* ========================================
+   响应式显示/隐藏
+   ======================================== */
+.show-on-desktop { display: block; }
+.hide-on-desktop { display: none; }
+
+/* 平板端 (768px - 1023px) */
+@media (max-width: 1023px) and (min-width: 768px) {
+  .show-on-desktop { display: none; }
+  .hide-on-desktop { display: block; }
+}
+
+/* 手机端 (< 768px) */
+@media (max-width: 767px) {
+  .show-on-desktop { display: none; }
+  .hide-on-desktop { display: block; }
+}
+
+/* ========================================
    基础样式
    ======================================== */
 * {
@@ -912,6 +930,33 @@ input:focus, button:focus, select:focus {
   .two-col { grid-template-columns: 1fr; }
   
   .card { padding: 20px; }
+
+  /* 平板端表格优化 - 隐藏部分列 */
+  .data-table th:nth-child(5),
+  .data-table td:nth-child(5) {
+    display: none;
+  }
+
+  .data-table th:nth-child(1) { width: 60px; }
+  .data-table th:nth-child(2) { width: 50px; }
+  .data-table th:nth-child(6),
+  .data-table th:nth-child(7),
+  .data-table th:nth-child(8) {
+    font-size: 12px;
+  }
+
+  .filter-row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .filter-input {
+    flex: 1 1 calc(50% - 5px);
+  }
+
+  .filter-input:nth-child(3) {
+    flex: 1 1 100%;
+  }
 }
 
 /* ========================================
@@ -1125,6 +1170,105 @@ input:focus, button:focus, select:focus {
 
   .top-text { font-size: 12px; }
   .top-count { font-size: 13px; }
+
+  /* 手机端隐藏表格（卡片模式替代） */
+  .table-wrap .data-table {
+    display: none;
+  }
+
+  /* 移动端卡片列表视图 */
+  .card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card-list-item {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  .card-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .card-list-name {
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--text-primary);
+  }
+
+  .card-list-badge {
+    background: var(--primary);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+  }
+
+  .card-list-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+
+  .card-list-label {
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .card-list-value {
+    color: var(--text-primary);
+    text-align: right;
+    word-break: break-all;
+    max-width: 60%;
+  }
+
+  .card-list-code {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 11px;
+    color: var(--primary);
+  }
+
+  /* 筛选器折叠 */
+  .filter-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .filter-toggle.expanded {
+    margin-bottom: 0;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    border-bottom: none;
+  }
+
+  .filter-section {
+    padding: 12px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    margin-bottom: 12px;
+  }
 }
 
 /* ========================================
