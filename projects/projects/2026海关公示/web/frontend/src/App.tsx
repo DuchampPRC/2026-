@@ -487,7 +487,6 @@ function AppContent() {
   const [filters, setFilters] = useState({ name: '', school: '', position: '', district: '', education: '', gender: '' })
   const [searchKey, setSearchKey] = useState(0)
   const [isReady, setIsReady] = useState(false)
-  const [filterExpanded, setFilterExpanded] = useState(true)
 
   const overviewState = useFetch<Overview>(`${API_BASE}/overview`)
   const districtsState = useFetch<DistrictsResponse>(`${API_BASE}/districts`)
@@ -659,38 +658,44 @@ function AppContent() {
                 </div>
               </div>
               
-              {/* 移动端筛选器折叠 */}
-              <div className="hide-on-desktop">
-                <div 
-                  className={`filter-toggle ${filterExpanded ? 'expanded' : ''}`}
-                  onClick={() => setFilterExpanded(!filterExpanded)}
-                >
-                  <span>🔽</span>
-                  <span>{filterExpanded ? '收起筛选' : '展开筛选'}</span>
-                </div>
-                {filterExpanded && (
-                  <div className="filter-section">
-                    <SearchPanel onSearch={handleSearch} filters={filters} onFilterChange={handleFilterChange} />
-                  </div>
-                )}
-              </div>
-              
-              {/* 桌面端筛选器 */}
+              {/* 桌面端完整筛选器 */}
               <div className="show-on-desktop">
                 <SearchPanel onSearch={handleSearch} filters={filters} onFilterChange={handleFilterChange} />
+              </div>
+              
+              {/* 移动端简化搜索 */}
+              <div className="hide-on-desktop" style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="搜索姓名、院校、职位..." 
+                    value={filters.name || filters.school || filters.position || ''}
+                    onChange={e => {
+                      const val = e.target.value
+                      setFilters(f => ({ ...f, name: val, school: val, position: val }))
+                    }}
+                    className="filter-input"
+                    style={{ flex: 1 }}
+                  />
+                  <button className="btn-primary" onClick={handleSearch} style={{ padding: '12px 20px' }}>
+                    搜索
+                  </button>
+                </div>
               </div>
               
               {searchLoading && <LoadingSpinner />}
               {searchError && <ErrorMessage message={searchError} onRetry={handleSearch} />}
               
               {search?.items && search?.items.length > 0 && (
-                <>
-                  <p style={{ color: '#64748b', marginBottom: '16px' }}>
-                    共找到 <strong style={{ color: '#0ea5e9' }}>{searchTotal.toLocaleString()}</strong> 条记录
-                  </p>
-                  
-                  {/* 桌面端完整表格 */}
-                  <div className="table-wrap show-on-desktop">
+                <p style={{ color: '#64748b', marginBottom: '16px' }} className="show-on-desktop">
+                  共找到 <strong style={{ color: '#0ea5e9' }}>{searchTotal.toLocaleString()}</strong> 条记录
+                </p>
+              )}
+              
+              {/* 桌面端搜索结果表格 */}
+              {search?.items && search?.items.length > 0 && (
+                <div className="show-on-desktop">
+                  <div className="table-wrap">
                     <table className="data-table">
                       <thead>
                         <tr>
@@ -727,41 +732,7 @@ function AppContent() {
                       </tbody>
                     </table>
                   </div>
-                  
-                  {/* 移动端卡片列表 */}
-                  <div className="card-list hide-on-desktop">
-                    {searchItems.map((item, i) => (
-                      <div key={i} className="card-list-item">
-                        <div className="card-list-header">
-                          <span className="card-list-name">{highlightText(item.姓名, filters.name)}</span>
-                          <span className="card-list-badge">{item.学历 ?? '-'}</span>
-                        </div>
-                        <div className="card-list-row">
-                          <span className="card-list-label">院校</span>
-                          <span className="card-list-value">{highlightText(item.毕业院校, filters.school) ?? '-'}</span>
-                        </div>
-                        <div className="card-list-row">
-                          <span className="card-list-label">关区</span>
-                          <span className="card-list-value link" onClick={() => item.关区 && handleDistrictClick(item.关区)}>
-                            {item.关区 ?? '-'}
-                          </span>
-                        </div>
-                        <div className="card-list-row">
-                          <span className="card-list-label">隶属关</span>
-                          <span className="card-list-value">{highlightText(item.隶属关, filters.position) ?? '-'}</span>
-                        </div>
-                        <div className="card-list-row">
-                          <span className="card-list-label">职务</span>
-                          <span className="card-list-value">{highlightText(item.职务职位, filters.position) ?? '-'}</span>
-                        </div>
-                        <div className="card-list-row">
-                          <span className="card-list-label">代码</span>
-                          <span className="card-list-value card-list-code">{item.职位代码 ?? '-'}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
+                </div>
               )}
             </>
           )}
