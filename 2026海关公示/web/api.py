@@ -4,9 +4,17 @@
 """
 
 import os
+import sys
+from pathlib import Path
+
+# 添加项目根目录到 Python 路径，确保可以导入 customs_pipeline
+_current_file = Path(__file__).resolve()
+_project_root = _current_file.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 import re
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
