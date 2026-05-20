@@ -487,11 +487,15 @@ function AppContent() {
   const [filters, setFilters] = useState({ name: '', school: '', position: '', district: '', education: '', gender: '' })
   const [searchKey, setSearchKey] = useState(0)
   const [isReady, setIsReady] = useState(false)
+  const [currentYear, setCurrentYear] = useState('2026')  // 当前选择的年份
 
-  const overviewState = useFetch<Overview>(`${API_BASE}/overview`)
-  const districtsState = useFetch<DistrictsResponse>(`${API_BASE}/districts`)
-  const schoolsState = useFetch<any[]>(`${API_BASE}/schools?top=50`)
-  const positionsState = useFetch<PositionAnalysis>(`${API_BASE}/positions/analysis`)
+  // 获取可用年份列表
+  const yearsState = useFetch<{ years: string[] }>(`${API_BASE}/years`)
+
+  const overviewState = useFetch<Overview>(`${API_BASE}/overview?year=${currentYear}`)
+  const districtsState = useFetch<DistrictsResponse>(`${API_BASE}/districts?year=${currentYear}`)
+  const schoolsState = useFetch<any[]>(`${API_BASE}/schools?top=50&year=${currentYear}`)
+  const positionsState = useFetch<PositionAnalysis>(`${API_BASE}/positions/analysis?year=${currentYear}`)
 
   // 主要数据（overview + districts）加载完成后就显示，schools/positions 可后续加载
   useEffect(() => {
@@ -505,11 +509,12 @@ function AppContent() {
   Object.entries(filters).forEach(([k, v]) => v && searchParams.set(k, v))
   searchParams.set('page', '1')
   searchParams.set('page_size', '20')
+  searchParams.set('year', currentYear)
 
   const searchState = useFetch<SearchResult>(tab === 'search' ? `${API_BASE}/search?${searchParams}` : null)
 
   const [detailDistrict, setDetailDistrict] = useState('')
-  const detailParams = detailDistrict ? `${API_BASE}/district/${encodeURIComponent(detailDistrict)}` : null
+  const detailParams = detailDistrict ? `${API_BASE}/district/${encodeURIComponent(detailDistrict)}?year=${currentYear}` : null
   const detailState = useFetch<DistrictDetail>(detailParams)
 
   // 安全访问状态
@@ -549,7 +554,19 @@ function AppContent() {
         <div className="sidebar-brand">
           <div className="sidebar-icon">🏛️</div>
           <div className="sidebar-title">海关公示数据分析</div>
-          <div className="sidebar-sub">2026年度公务员录用</div>
+          <div className="sidebar-sub">公务员录用公示查询</div>
+          {/* 年份选择器 */}
+          <div className="year-selector">
+            <select 
+              value={currentYear} 
+              onChange={(e) => setCurrentYear(e.target.value)}
+              className="year-select"
+            >
+              {yearsState?.data?.years?.map(year => (
+                <option key={year} value={year}>{year}年</option>
+              )) ?? <option value="2026">2026年</option>}
+            </select>
+          </div>
         </div>
         <nav className="sidebar-nav">
           <div className="nav-section">

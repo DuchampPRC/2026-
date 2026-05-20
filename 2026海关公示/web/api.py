@@ -65,27 +65,32 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # 基础路径配置
 BASE_DIR = Path(__file__).resolve().parent                  # web/ 目录
 DIST_DIR = BASE_DIR / "frontend" / "dist"                # 前端构建产物目录
-CSV_PATH = BASE_DIR.parent / "output" / "2026" / "2026海关公示汇总.csv"  # 数据文件路径
+DATA_DIR = BASE_DIR.parent / "output"                  # 数据文件根目录
 
-# =============================================================================
-# Data Loading & Caching
-# =============================================================================
+def get_csv_path(year: str = "2026") -> Path:
+    """根据年份获取 CSV 文件路径"""
+    return DATA_DIR / year / f"{year}海关公示汇总.csv"
 
-_df_cache: pd.DataFrame | None = None
+# 多年份数据缓存
+_data_cache: dict[str, pd.DataFrame] = {}
 
 
-def get_df() -> pd.DataFrame:
-    """获取缓存的 DataFrame，若未加载则抛出错误。"""
-    global _df_cache
-    if _df_cache is None:
+def get_df(year: str = "2026") -> pd.DataFrame:
+    """获取指定年份缓存的 DataFrame，若未加载则抛出错误。"""
+    if year not in _data_cache:
         raise HTTPException(
             status_code=503,
-            detail="数据未加载，请等待服务启动完成"
+            detail=f"年份 {year} 数据未加载，请等待服务启动完成"
         )
-    return _df_cache
+    return _data_cache[year]
 
 
-def _load_csv() -> pd.DataFrame:
+def get_available_years() -> list[str]:
+    """获取所有可用的年份列表"""
+    return sorted(_data_cache.keys(), reverse=True)
+
+
+def _load_csv(year: str = "2026") -> pd.DataFrame:
     """
     加载 CSV 文件并返回 DataFrame。
     
@@ -100,11 +105,12 @@ def _load_csv() -> pd.DataFrame:
         FileNotFoundError: 数据文件不存在
         ValueError: 数据缺少必需列
     """
-    if not CSV_PATH.exists():
-        raise FileNotFoundError(f"数据文件不存在: {CSV_PATH}")
+    csv_path = get_csv_path(year)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"数据文件不存在: {csv_path}")
 
     # 使用 utf-8-sig 编码读取（处理 BOM）
-    df = pd.read_csv(CSV_PATH, encoding="utf-8-sig")
+    df = pd.read_csv(csv_path, encoding="utf-8-sig")
 
     # 数据验证：确保必需列存在
     # 如有缺失会抛出异常，避免运行时错误
@@ -128,16 +134,48 @@ def _load_csv() -> pd.DataFrame:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理：启动时加载数据，关闭时清理缓存。"""
-    global _df_cache
-    try:
-        _df_cache = _load_csv()
-        print(f"[启动] 数据加载完成，共 {len(_df_cache)} 条记录")
-    except Exception as e:
-        print(f"[警告] 数据加载失败: {e}")
-        _df_cache = pd.DataFrame()  # 使用空 DataFrame 避免运行时错误
+    global _data_cache
+    
+    # 扫描可用年份并加载数据
+    available_years = []
+    for year_dir in sorted(DATA_DIR.iterdir(), reverse=True):
+        if year_dir.is_dir() and year_dir.name.isdigit():
+            year = year_dir.name
+            try:
+                _data_cache[year] = _load_csv(year)
+                available_years.append(year)
+                print(f"[启动] {year}年数据加载完成，共 {len(_data_cache[year])} 条记录")
+            except FileNotFoundError:
+                print(f"[跳过] {year}年数据文件不存在")
+            except Exception as e:
+                print(f"[警告] {year}年数据加载失败: {e}")
+    
+    if not available_years:
+        print(f"[警告] 未加载任何年份数据，请检查数据目录: {DATA_DIR}")
+    
     yield
-    _df_cache = None
+    _data_cache.clear()
     print("[关闭] 数据缓存已清理")
+
+
+# =============================================================================
+# Year API - 年份相关
+# =============================================================================
+
+@app.get("/api/years", tags=["数据"])
+async def get_years() -> dict:
+    """
+    获取所有可用的年份列表。
+    
+    Returns:
+        {"years": ["2026", "2025", ...]}
+    """
+    years = list(_data_cache.keys())
+    years.sort(reverse=True)  # 最新年份在前
+    return {"years": years}
+
+
+# =============================================================================
 
 
 # =============================================================================
@@ -377,14 +415,23 @@ async def health_check():
     }
 
 
+@app.get("/api/years", tags=["数据"])
+async def get_years() -> dict:
+    """获取所有可用的年份列表。"""
+    return {
+        "years": get_available_years(),
+        "current": get_available_years()[0] if get_available_years() else None
+    }
+
+
 # =============================================================================
 # Overview Statistics
 # =============================================================================
 
 @app.get("/api/overview", response_model=OverviewResponse, tags=["统计"])
-async def get_overview() -> OverviewResponse:
-    """获取总体统计数据概览。"""
-    df = get_df()
+async def get_overview(year: str = Query(default="2026", description="年份")) -> OverviewResponse:
+    """获取指定年份的总体统计数据概览。"""
+    df = get_df(year)
     return OverviewResponse(
         total=ensure_int(len(df)),
         districts=ensure_int(df["关区"].nunique()),
@@ -398,9 +445,9 @@ async def get_overview() -> OverviewResponse:
 # =============================================================================
 
 @app.get("/api/districts", response_model=DistrictsResponse, tags=["关区"])
-async def get_districts() -> DistrictsResponse:
-    """获取所有关区列表及录用人数。"""
-    df = get_df()
+async def get_districts(year: str = Query(default="2026", description="年份")) -> DistrictsResponse:
+    """获取指定年份的所有关区列表及录用人数。"""
+    df = get_df(year)
     grouped = df.groupby("关区").size().reset_index(name="人数")
     grouped = grouped.sort_values("人数", ascending=False)
 
@@ -416,9 +463,9 @@ async def get_districts() -> DistrictsResponse:
 
 
 @app.get("/api/district/{district}", response_model=DistrictDetailResponse, tags=["关区"])
-async def get_district_detail(district: str) -> DistrictDetailResponse:
+async def get_district_detail(district: str, year: str = Query(default="2026", description="年份")) -> DistrictDetailResponse:
     """获取指定关区的详细统计信息。"""
-    df = get_df()
+    df = get_df(year)
     district_df = df[df["关区"] == district]
     if district_df.empty:
         raise HTTPException(status_code=404, detail=f"关区 '{district}' 不存在")
@@ -467,9 +514,10 @@ async def get_district_detail(district: str) -> DistrictDetailResponse:
 @app.get("/api/schools", response_model=list[SchoolInfo], tags=["院校"])
 async def get_schools(
     top: int = Query(default=20, ge=1, le=100, description="返回数量"),
+    year: str = Query(default="2026", description="年份"),
 ) -> list[SchoolInfo]:
-    """获取录用人数最多的院校排名。"""
-    df = get_df()
+    """获取指定年份录用人数最多的院校排名。"""
+    df = get_df(year)
     grouped = df.groupby("毕业院校").size().reset_index(name="人数")
     grouped = grouped.sort_values("人数", ascending=False).head(top)
 
@@ -484,9 +532,9 @@ async def get_schools(
 # =============================================================================
 
 @app.get("/api/positions/analysis", response_model=PositionAnalysisResponse, tags=["职位"])
-async def get_position_analysis() -> PositionAnalysisResponse:
+async def get_position_analysis(year: str = Query(default="2026", description="年份")) -> PositionAnalysisResponse:
     """
-    获取职位分析统计数据。
+    获取指定年份的职位分析统计数据。
     
     统计维度：
     - 职位类型分布（职务职位）
@@ -496,7 +544,7 @@ async def get_position_analysis() -> PositionAnalysisResponse:
     Returns:
         包含各类统计计数的响应
     """
-    df = get_df()
+    df = get_df(year)
 
     # 职务职位分布：使用解析后的职务职位字段
     job_type_counts = df["职务职位"].fillna("未知").value_counts().to_dict()
@@ -525,11 +573,12 @@ async def search(
     district: str | None = Query(default=None, description="关区名称（精确匹配）"),
     education: str | None = Query(default=None, description="学历（精确匹配）"),
     gender: str | None = Query(default=None, description="性别（精确匹配）"),
+    year: str = Query(default="2026", description="年份"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=20, ge=1, le=100, description="每页数量"),
 ) -> SearchResponse:
     """
-    多条件搜索录用人员信息。
+    多条件搜索指定年份的录用人员信息。
     
     搜索逻辑：
     - 关键字搜索（name/school/position）：模糊匹配，支持空格分隔多关键字 AND 搜索
@@ -540,7 +589,7 @@ async def search(
     Returns:
         包含分页结果的搜索响应
     """
-    df = get_df()
+    df = get_df(year)
 
     # 关键字搜索：支持模糊匹配 + 多关键字 AND
     df = filter_by_keywords(df, "姓名", name or "")
@@ -618,9 +667,10 @@ async def export_data(
     education: str | None = Query(default=None, description="学历"),
     gender: str | None = Query(default=None, description="性别"),
     format: str = Query(default="csv", pattern="^(csv|xlsx)$", description="导出格式：csv 或 xlsx"),
+    year: str = Query(default="2026", description="年份"),
 ) -> Response:
     """
-    导出筛选后的数据为 CSV 或 Excel 文件。
+    导出指定年份筛选后的数据为 CSV 或 Excel 文件。
     
     导出字段：姓名、性别、学历、毕业院校、关区、隶属关、职务职位、职位代码
     
@@ -628,7 +678,7 @@ async def export_data(
     - 最大导出 10000 条记录
     - 支持与搜索接口相同的筛选条件
     """
-    df = get_df()
+    df = get_df(year)
 
     # 应用筛选条件（与 search 接口相同）
     df = filter_by_keywords(df, "姓名", name or "")

@@ -156,6 +156,39 @@ input:focus, button:focus, select:focus {
   margin-top: 4px;
 }
 
+/* 年份选择器 */
+.year-selector {
+  margin-top: 12px;
+}
+
+.year-select {
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.year-select:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.year-select:focus {
+  outline: none;
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+}
+
+.year-select option {
+  background: var(--bg-dark);
+  color: #fff;
+}
+
 /* 导航菜单 */
 .sidebar-nav { 
   padding: 16px 12px 24px; 
