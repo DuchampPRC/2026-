@@ -63,9 +63,9 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # 基础路径配置
-BASE_DIR = Path(__file__).parent                          # web/ 目录
+BASE_DIR = Path(__file__).resolve().parent                  # web/ 目录
 DIST_DIR = BASE_DIR / "frontend" / "dist"                # 前端构建产物目录
-CSV_PATH = BASE_DIR / ".." / "output" / "2026" / "2026海关公示汇总.csv"  # 数据文件路径
+CSV_PATH = BASE_DIR.parent / "output" / "2026" / "2026海关公示汇总.csv"  # 数据文件路径
 
 # =============================================================================
 # Data Loading & Caching
