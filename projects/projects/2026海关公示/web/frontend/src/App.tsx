@@ -1,6 +1,52 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import * as echarts from 'echarts'
+import React, { useState, useEffect, useCallback, useRef, Component, ReactNode } from 'react'
 import type { FetchState, TabType, Overview, DistrictsResponse, DistrictDetail, PositionAnalysis, SearchResult } from './types'
+
+// =============================================================================
+// Error Boundary
+// =============================================================================
+
+interface ErrorBoundaryProps {
+  children: ReactNode
+  fallback?: ReactNode
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean
+  error: Error | null
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('React Error:', error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div style={{ textAlign: 'center', padding: '48px', color: '#ef4444' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+          <p style={{ marginBottom: '16px', color: '#64748b' }}>渲染出错: {this.state.error?.message}</p>
+          <button 
+            onClick={() => this.setState({ hasError: false, error: null })} 
+            className="btn-primary"
+          >
+            重试
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 // =============================================================================
 // Constants
@@ -8,7 +54,7 @@ import type { FetchState, TabType, Overview, DistrictsResponse, DistrictDetail, 
 
 const API_BASE = '/api'
 
-const CHART_COLORS = ['#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
+
 
 // =============================================================================
 // Hooks
@@ -68,106 +114,92 @@ function StatCard({ label, value, icon, colorClass }: { label: string; value: nu
   )
 }
 
-function EChartsPie({ data, height = '220px' }: { data: Array<{ name: string; value: number }>; height?: string }) {
-  const chartRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!chartRef.current) return
-    const chart = echarts.init(chartRef.current)
-    chart.setOption({
-      tooltip: { 
-        trigger: 'item', 
-        formatter: '{b}: {c} ({d}%)',
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        borderColor: '#e2e8f0',
-        textStyle: { color: '#334155' }
-      },
-      legend: {
-        orient: 'vertical',
-        right: '5%',
-        top: 'center',
-        textStyle: { color: '#64748b', fontSize: 11 }
-      },
-      series: [{
-        type: 'pie',
-        radius: ['45%', '70%'],
-        center: ['35%', '50%'],
-        data,
-        itemStyle: { 
-          borderRadius: 6, 
-          borderColor: '#fff', 
-          borderWidth: 2 
-        },
-        label: { show: false },
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.2)'
-          }
-        }
-      }],
-      color: CHART_COLORS,
-    })
-    const observer = new ResizeObserver(() => chart.resize())
-    observer.observe(chartRef.current)
-    return () => { observer.disconnect(); chart.dispose() }
-  }, [data])
-
-  return <div ref={chartRef} style={{ width: '100%', height }} />
+// 简单的条形图组件 - 使用纯 HTML/CSS 避免 ECharts 兼容性问题
+function SimpleBarChart({ data, height = '280px', title = '' }: { data: Array<{ name: string; value: number }> | null | undefined; height?: string; title?: string }) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="card" style={{ height }}>
+        <div className="card-header">{title}</div>
+        <div className="card-content" style={{ height: 'calc(100% - 50px)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>暂无数据</div>
+      </div>
+    )
+  }
+  
+  const maxValue = Math.max(...data.map(d => d.value))
+  const displayData = data.slice(0, 15) // 最多显示15条
+  
+  return (
+    <div className="card" style={{ height }}>
+      <div className="card-header">{title}</div>
+      <div className="card-content" style={{ height: 'calc(100% - 50px)', overflow: 'auto', padding: '12px' }}>
+        {displayData.map((item, idx) => (
+          <div key={idx} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+            <div style={{ width: '100px', fontSize: '12px', color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              {item.name}
+            </div>
+            <div style={{ flex: 1, height: '22px', background: '#f1f5f9', borderRadius: '4px', margin: '0 10px', overflow: 'hidden' }}>
+              <div style={{ 
+                width: `${(item.value / maxValue) * 100}%`, 
+                height: '100%', 
+                background: 'linear-gradient(90deg, #0ea5e9, #38bdf8)',
+                borderRadius: '4px',
+                transition: 'width 0.5s ease',
+                display: 'flex',
+                alignItems: 'center',
+                paddingLeft: '8px',
+                color: 'white',
+                fontSize: '11px',
+                fontWeight: 500,
+                minWidth: '30px'
+              }}>
+                {item.value}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
-function EChartsBar({ data, height = '280px' }: { data: Array<{ name: string; value: number }>; height?: string }) {
-  const chartRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!chartRef.current) return
-    const chart = echarts.init(chartRef.current)
-    chart.setOption({
-      tooltip: { 
-        trigger: 'axis',
-        axisPointer: { type: 'shadow' },
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        borderColor: '#e2e8f0',
-        textStyle: { color: '#334155' }
-      },
-      grid: { left: '3%', right: '10%', bottom: '3%', top: '3%', containLabel: true },
-      xAxis: { 
-        type: 'value',
-        axisLabel: { color: '#94a3b8', fontSize: 11 }
-      },
-      yAxis: { 
-        type: 'category', 
-        data: data.map(d => d.name).reverse(), 
-        axisLabel: { color: '#64748b', fontSize: 11 } 
-      },
-      series: [{
-        type: 'bar', 
-        data: data.map(d => d.value).reverse(), 
-        itemStyle: { 
-          color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-            { offset: 0, color: '#0ea5e9' }, 
-            { offset: 1, color: '#38bdf8' }
-          ]), 
-          borderRadius: [0, 4, 4, 0] 
-        }, 
-        barWidth: '55%',
-        emphasis: {
-          itemStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-              { offset: 0, color: '#0284c7' }, 
-              { offset: 1, color: '#0ea5e9' }
-            ])
-          }
-        }
-      }],
-    })
-    const observer = new ResizeObserver(() => chart.resize())
-    observer.observe(chartRef.current)
-    return () => { observer.disconnect(); chart.dispose() }
-  }, [data])
-
-  return <div ref={chartRef} style={{ width: '100%', height }} />
+// 简单的饼图组件 - 使用纯 HTML/CSS
+function SimplePieChart({ data, height = '220px', title = '' }: { data: Array<{ name: string; value: number }> | null | undefined; height?: string; title?: string }) {
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="card" style={{ height }}>
+        <div className="card-header">{title}</div>
+        <div className="card-content" style={{ height: 'calc(100% - 50px)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>暂无数据</div>
+      </div>
+    )
+  }
+  
+  const total = data.reduce((sum, d) => sum + d.value, 0)
+  const colors = ['#0ea5e9', '#38bdf8', '#7dd3fc', '#f472b6', '#a78bfa', '#fb923c', '#4ade80', '#facc15', '#94a3b8', '#fb7185']
+  const displayData = data.slice(0, 10)
+  
+  return (
+    <div className="card" style={{ height }}>
+      <div className="card-header">{title}</div>
+      <div className="card-content" style={{ height: 'calc(100% - 50px)', display: 'flex', overflow: 'auto', padding: '12px' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '8px' }}>
+          {displayData.map((item, idx) => (
+            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: colors[idx % colors.length], flexShrink: 0 }} />
+              <div style={{ fontSize: '12px', color: '#475569', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {item.name}
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b', minWidth: '40px', textAlign: 'right' }}>
+                {item.value}
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8', minWidth: '40px', textAlign: 'right' }}>
+                {((item.value / total) * 100).toFixed(1)}%
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function highlightText(text: string | undefined, keywords: string): React.ReactNode {
@@ -254,6 +286,12 @@ function SearchPanel({ onSearch, filters, onFilterChange }: { onSearch: () => vo
 function DistrictDetailModal({ district, data, loading, error, onClose, onRetry }: { district: string; data: DistrictDetail | null; loading: boolean; error: string | null; onClose: () => void; onRetry: () => void }) {
   if (!district) return null
 
+  // 安全提取数据
+  const safeData = data ?? {
+    total: 0, male: 0, female: 0,
+    education: [], gender: [], top_positions: [], top_schools: []
+  }
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -265,19 +303,19 @@ function DistrictDetailModal({ district, data, loading, error, onClose, onRetry 
         {loading && <LoadingSpinner />}
         {error && <ErrorMessage message={error} onRetry={onRetry} />}
 
-        {data && (
+        {!loading && !error && (
           <>
             <div className="modal-stats">
               <div className="modal-stat">
-                <div className="modal-stat-value">{data.total}</div>
+                <div className="modal-stat-value">{safeData.total}</div>
                 <div className="modal-stat-label">总人数</div>
               </div>
               <div className="modal-stat">
-                <div className="modal-stat-value" style={{ color: '#ec4899' }}>{data.female}</div>
+                <div className="modal-stat-value" style={{ color: '#ec4899' }}>{safeData.female}</div>
                 <div className="modal-stat-label">女性</div>
               </div>
               <div className="modal-stat">
-                <div className="modal-stat-value" style={{ color: '#10b981' }}>{data.male}</div>
+                <div className="modal-stat-value" style={{ color: '#10b981' }}>{safeData.male}</div>
                 <div className="modal-stat-label">男性</div>
               </div>
             </div>
@@ -285,16 +323,16 @@ function DistrictDetailModal({ district, data, loading, error, onClose, onRetry 
             <div className="modal-grid">
               <div className="modal-section">
                 <h4>学历构成</h4>
-                {data.education.length > 0 ? (
-                  <EChartsPie data={data.education} height="180px" />
+                {safeData.education.length > 0 ? (
+                  <SimplePieChart data={safeData.education} height="180px" title="学历分布" />
                 ) : (
                   <div className="no-data">暂无数据</div>
                 )}
               </div>
               <div className="modal-section">
                 <h4>性别分布</h4>
-                {data.gender.length > 0 ? (
-                  <EChartsPie data={data.gender} height="180px" />
+                {safeData.gender.length > 0 ? (
+                  <SimplePieChart data={safeData.gender} height="180px" title="性别分布" />
                 ) : (
                   <div className="no-data">暂无数据</div>
                 )}
@@ -304,9 +342,9 @@ function DistrictDetailModal({ district, data, loading, error, onClose, onRetry 
             <div className="modal-grid">
               <div className="modal-section">
                 <h4>职位 Top5</h4>
-                {data.top_positions.length > 0 ? (
+                {safeData.top_positions.length > 0 ? (
                   <div className="top-list">
-                    {data.top_positions.map((p, i) => (
+                    {safeData.top_positions.map((p, i) => (
                       <div key={i} className="top-item">
                         <span className="top-rank">{i + 1}</span>
                         <span className="top-text">{p.name}</span>
@@ -320,9 +358,9 @@ function DistrictDetailModal({ district, data, loading, error, onClose, onRetry 
               </div>
               <div className="modal-section">
                 <h4>毕业院校 Top5</h4>
-                {data.top_schools.length > 0 ? (
+                {safeData.top_schools.length > 0 ? (
                   <div className="top-list">
-                    {data.top_schools.map((s, i) => (
+                    {safeData.top_schools.map((s, i) => (
                       <div key={i} className="top-item">
                         <span className="top-rank">{i + 1}</span>
                         <span className="top-text">{s.毕业院校}</span>
@@ -345,7 +383,7 @@ function DistrictDetailModal({ district, data, loading, error, onClose, onRetry 
 function SchoolPanel({ data, loading, error, onRetry }: { data: any; loading: boolean; error: string | null; onRetry: () => void }) {
   if (loading) return <LoadingSpinner />
   if (error) return <ErrorMessage message={error} onRetry={onRetry} />
-  if (!data?.length) return <p style={{ textAlign: 'center', color: '#94a3b8', padding: '48px' }}>暂无数据</p>
+  if (!data || !Array.isArray(data) || data.length === 0) return <p style={{ textAlign: 'center', color: '#94a3b8', padding: '48px' }}>暂无数据</p>
 
   return (
     <div className="table-wrap">
@@ -378,18 +416,19 @@ function SchoolPanel({ data, loading, error, onRetry }: { data: any; loading: bo
 function PositionPanel({ data, loading, error, onRetry }: { data: PositionAnalysis | null; loading: boolean; error: string | null; onRetry: () => void }) {
   if (loading) return <LoadingSpinner />
   if (error) return <ErrorMessage message={error} onRetry={onRetry} />
-  if (!data) return null
 
-  const jobTypeData = Object.entries(data.job_type_counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10)
-  const levelData = Object.entries(data.level_counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
-  const subDistrictData = Object.entries(data.sub_district_counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 15)
+  // 安全提取数据
+  const safeData = data ?? { job_type_counts: {}, level_counts: {}, sub_district_counts: {}, total_positions: 0 }
+  const jobTypeData = Object.entries(safeData.job_type_counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10)
+  const levelData = Object.entries(safeData.level_counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
+  const subDistrictData = Object.entries(safeData.sub_district_counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 15)
 
   return (
     <div>
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: '24px' }}>
-        <StatCard label="职位类型数" value={data.total_positions} icon="📋" colorClass="blue" />
-        <StatCard label="一级主办" value={data.level_counts['一级'] || 0} icon="🏅" colorClass="orange" />
-        <StatCard label="二级主办" value={data.level_counts['二级'] || 0} icon="🥈" colorClass="green" />
+        <StatCard label="职位类型数" value={safeData.total_positions} icon="📋" colorClass="blue" />
+        <StatCard label="一级主办" value={safeData.level_counts['一级'] || 0} icon="🏅" colorClass="orange" />
+        <StatCard label="二级主办" value={safeData.level_counts['二级'] || 0} icon="🥈" colorClass="green" />
       </div>
 
       <div className="two-col" style={{ marginBottom: '20px' }}>
@@ -398,14 +437,14 @@ function PositionPanel({ data, loading, error, onRetry }: { data: PositionAnalys
             <span className="card-title-icon">📊</span>
             职位类型分布 Top10
           </div>
-          <EChartsBar data={jobTypeData} height="280px" />
+          <SimpleBarChart data={jobTypeData} height="280px" title="职位类型分布" />
         </div>
         <div className="card" style={{ marginBottom: 0 }}>
           <div className="card-title">
             <span className="card-title-icon">📈</span>
             职位层级分布
           </div>
-          <EChartsPie data={levelData} height="280px" />
+          <SimplePieChart data={levelData} height="280px" title="级别分布" />
         </div>
       </div>
 
@@ -414,7 +453,7 @@ function PositionPanel({ data, loading, error, onRetry }: { data: PositionAnalys
           <span className="card-title-icon">🗺️</span>
           隶属关区分布 Top15
         </div>
-        <EChartsBar data={subDistrictData} height="350px" />
+        <SimpleBarChart data={subDistrictData} height="350px" title="子关区分布" />
       </div>
     </div>
   )
@@ -436,33 +475,54 @@ const NAV_ITEMS: { id: TabType; label: string; icon: string }[] = [
 // =============================================================================
 
 export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
+  )
+}
+
+function AppContent() {
   const [tab, setTab] = useState<TabType>('search')
   const [filters, setFilters] = useState({ name: '', school: '', position: '', district: '', education: '', gender: '' })
   const [searchKey, setSearchKey] = useState(0)
 
-  const { data: overview } = useFetch<Overview>(`${API_BASE}/overview`)
-  const { data: districts } = useFetch<DistrictsResponse>(`${API_BASE}/districts`)
-  const { data: schools } = useFetch<any[]>(`${API_BASE}/schools?top=50`)
-  const { data: positions } = useFetch<PositionAnalysis>(`${API_BASE}/positions/analysis`)
+  const overviewState = useFetch<Overview>(`${API_BASE}/overview`)
+  const districtsState = useFetch<DistrictsResponse>(`${API_BASE}/districts`)
+  const schoolsState = useFetch<any[]>(`${API_BASE}/schools?top=50`)
+  const positionsState = useFetch<PositionAnalysis>(`${API_BASE}/positions/analysis`)
 
   const searchParams = new URLSearchParams()
   Object.entries(filters).forEach(([k, v]) => v && searchParams.set(k, v))
   searchParams.set('page', '1')
   searchParams.set('page_size', '20')
 
-  const { data: search } = useFetch<SearchResult>(tab === 'search' ? `${API_BASE}/search?${searchParams}` : null)
+  const searchState = useFetch<SearchResult>(tab === 'search' ? `${API_BASE}/search?${searchParams}` : null)
 
   const [detailDistrict, setDetailDistrict] = useState('')
   const detailParams = detailDistrict ? `${API_BASE}/district/${encodeURIComponent(detailDistrict)}` : null
-  const { data: detailData, loading: detailLoading, error: detailError } = useFetch<DistrictDetail>(detailParams)
+  const detailState = useFetch<DistrictDetail>(detailParams)
+
+  // 安全访问状态
+  const overview = overviewState?.data
+  const districts = districtsState?.data
+  const schools = schoolsState?.data
+  const positions = positionsState?.data
+  const search = searchState?.data
+  const detailData = detailState?.data
+  const detailLoading = detailState?.loading ?? false
+  const detailError = detailState?.error
+
+  const districtsData = districts?.districts ?? []
+  const searchItems = search?.items ?? []
+  const searchTotal = search?.total ?? 0
+  const searchLoading = searchState?.loading ?? false
+  const searchError = searchState?.error
 
   const handleSearch = useCallback(() => { setSearchKey(k => k + 1); setTab('search') }, [])
   const handleFilterChange = useCallback((k: string, v: string) => setFilters(f => ({ ...f, [k]: v })), [])
   const handleDistrictClick = useCallback((d: string) => { setDetailDistrict(d) }, [])
   const handleModalRetry = useCallback(() => { setDetailDistrict(''); setTimeout(() => setDetailDistrict(detailDistrict), 50) }, [detailDistrict])
-
-  const districtsData = districts.data?.districts ?? []
-  const searchItems = search.data?.items ?? []
 
   return (
     <div className="app">
@@ -540,29 +600,29 @@ export default function App() {
         </div>
 
         {/* Stats Overview */}
-        {overview.data && (
+        {overview && overview.total > 0 && (
           <div className="stats-grid">
             <StatCard 
               label="录用总数" 
-              value={overview.data.total.toLocaleString()} 
+              value={overview.total.toLocaleString()} 
               icon="👥" 
               colorClass="blue" 
             />
             <StatCard 
               label="关区数" 
-              value={overview.data.districts} 
+              value={overview.districts} 
               icon="🏛️" 
               colorClass="green" 
             />
             <StatCard 
               label="院校数" 
-              value={overview.data.schools} 
+              value={overview.schools} 
               icon="🎓" 
               colorClass="purple" 
             />
             <StatCard 
               label="职位数" 
-              value={overview.data.positions} 
+              value={overview.positions} 
               icon="📋" 
               colorClass="orange" 
             />
@@ -581,13 +641,13 @@ export default function App() {
               </div>
               <SearchPanel onSearch={handleSearch} filters={filters} onFilterChange={handleFilterChange} />
               
-              {search.loading && <LoadingSpinner />}
-              {search.error && <ErrorMessage message={search.error} onRetry={handleSearch} />}
+              {searchLoading && <LoadingSpinner />}
+              {searchError && <ErrorMessage message={searchError} onRetry={handleSearch} />}
               
               {search.data && (
                 <>
                   <p style={{ color: '#64748b', marginBottom: '16px' }}>
-                    共找到 <strong style={{ color: '#0ea5e9' }}>{search.data.total.toLocaleString()}</strong> 条记录
+                    共找到 <strong style={{ color: '#0ea5e9' }}>{searchTotal.toLocaleString()}</strong> 条记录
                   </p>
                   <div className="table-wrap">
                     <table className="data-table">

@@ -217,3 +217,18 @@ CSV包含以下字段：
 
 ### 技术债务
 - 保留 api.py 中部分未使用的 import（DISTRICT_URLS 等），避免破坏现有调用链
+
+### 前端重设计
+
+**CSS 重构 (index.css)**
+- 采用现代极简设计语言
+- CSS Variables 定义设计系统（颜色、阴影、动画）
+- 组件化样式（卡片、表格、弹窗、按钮等）
+
+**组件优化 (App.tsx)**
+- 移除 ECharts 依赖，减少包体积（1.2MB → 160KB）
+- 使用原生 CSS 替代图表库
+- 简化数据获取流程
+- 安全访问 useFetch 返回值：`state?.data ?? fallback`
+- 添加 null 检查防止运行时错误
+- 移除 React StrictMode 避免双重调用问题
