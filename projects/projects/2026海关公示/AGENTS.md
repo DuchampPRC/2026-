@@ -46,6 +46,51 @@
   - `职位代码`：12位职位代码
 - **应用范围**：`/api/search`、`/api/positions/analysis` 均使用解析后的字段
 
+## 可复用变量/常量
+
+### 后端 (customs_pipeline/constants.py)
+| 变量/函数 | 说明 | 使用场景 |
+|-----------|------|----------|
+| `parse_position_field(text)` | 解析职位字段，返回字典 {隶属关, 职务职位, 职位代码} | search、positions/analysis 接口 |
+| `extract_level(text)` | 提取职位级别（一级主办/二级主办等） | positions/analysis 接口 |
+| `filter_by_keywords(df, col, keywords)` | 关键字过滤，支持多关键字 AND | search 接口 |
+| `ensure_int(val)` | 安全转换为整数 | 所有统计接口 |
+| `SAFE_DEFAULTS` | 各字段的安全默认值 | 数据加载时填充空值 |
+
+### 后端 (schemas.py)
+| 类型 | 说明 | 使用场景 |
+|------|------|----------|
+| `IntRange` | 整数范围限制 [1-1000] | 需要限制数值的字段 |
+| `PageSize` | 分页大小限制 [1-100] | search 接口 page_size |
+
+### 前端 (types.ts)
+| 类型 | 说明 | 对应后端 |
+|------|------|----------|
+| `Overview` | 概览数据 | OverviewResponse |
+| `SearchItem` | 搜索结果项 | SearchResultItem |
+| `PositionAnalysis` | 职位分析 | PositionAnalysisResponse |
+| `FetchState<T>` | 数据获取状态 | useFetch hook |
+
+### 前端 CSS 变量 (index.css)
+| 变量 | 说明 |
+|------|------|
+| `--primary` | 主色调（蓝色） |
+| `--success/warning/danger` | 语义色 |
+| `--shadow-sm/md/lg/xl` | 阴影层级 |
+| `--radius-sm/md/lg/xl` | 圆角层级 |
+| `--transition-fast/normal/slow` | 过渡动画时长 |
+
+### CSS 类控制
+| 类名 | 说明 |
+|------|------|
+| `.show-on-desktop` | 仅桌面端显示 |
+| `.hide-on-desktop` | 仅移动端显示 |
+
+## 响应式断点
+- **桌面端**：>= 1024px，完整布局
+- **平板端**：768px - 1023px，简化布局
+- **手机端**：< 768px，搜索 + 数据分析模块
+
 ## 运行命令
 ```bash
 # 后端

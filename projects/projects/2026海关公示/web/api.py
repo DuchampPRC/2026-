@@ -49,12 +49,14 @@ from schemas import (
 # Path Configuration
 # =============================================================================
 
+# 添加项目根目录到 Python 路径，以便导入 customs_pipeline 模块
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-BASE_DIR = Path(__file__).parent
-DIST_DIR = BASE_DIR / "frontend" / "dist"
-CSV_PATH = BASE_DIR / ".." / "output" / "2026" / "2026海关公示汇总.csv"
+# 基础路径配置
+BASE_DIR = Path(__file__).parent                          # web/ 目录
+DIST_DIR = BASE_DIR / "frontend" / "dist"                # 前端构建产物目录
+CSV_PATH = BASE_DIR / ".." / "output" / "2026" / "2026海关公示汇总.csv"  # 数据文件路径
 
 # =============================================================================
 # Data Loading & Caching
@@ -75,19 +77,36 @@ def get_df() -> pd.DataFrame:
 
 
 def _load_csv() -> pd.DataFrame:
-    """加载 CSV 文件并返回 DataFrame，解析职位代码。"""
+    """
+    加载 CSV 文件并返回 DataFrame。
+    
+    加载时执行以下预处理：
+    1. 验证必需列是否存在
+    2. 解析职位字段，提取隶属关、职务职位、职位代码
+    
+    Returns:
+        预处理后的 DataFrame
+    
+    Raises:
+        FileNotFoundError: 数据文件不存在
+        ValueError: 数据缺少必需列
+    """
     if not CSV_PATH.exists():
         raise FileNotFoundError(f"数据文件不存在: {CSV_PATH}")
 
+    # 使用 utf-8-sig 编码读取（处理 BOM）
     df = pd.read_csv(CSV_PATH, encoding="utf-8-sig")
 
-    # 数据验证
+    # 数据验证：确保必需列存在
+    # 如有缺失会抛出异常，避免运行时错误
     required_columns = {"关区", "姓名", "性别", "学历", "毕业院校", "拟录用职位及代码"}
     missing_columns = required_columns - set(df.columns)
     if missing_columns:
         raise ValueError(f"数据缺少必需列: {missing_columns}")
 
-    # 解析职位代码：隶属关 + 职务职位 + 职位代码
+    # 解析职位字段，生成新列
+    # 原始字段格式: "XX海关XX职位(300110101001)"
+    # 解析后生成: 隶属关、职务职位、职位代码 三列
     from customs_pipeline.constants import parse_position_field
     parsed = df["拟录用职位及代码"].apply(parse_position_field)
     df["隶属关"] = parsed.apply(lambda x: x["隶属关"])
@@ -122,20 +141,40 @@ def safe_to_dict(df: pd.DataFrame) -> list[dict]:
 
 
 def filter_by_keywords(df: pd.DataFrame, column: str, keywords: str) -> pd.DataFrame:
-    """按空格分隔的关键字过滤 DataFrame（AND 逻辑）。"""
+    """
+    按空格分隔的关键字过滤 DataFrame（AND 逻辑）。
+    
+    支持两种搜索模式：
+    - 单关键字：直接匹配
+    - 多关键字（空格分隔）：所有关键字都必须匹配
+    
+    Args:
+        df: 原始 DataFrame
+        column: 要搜索的列名
+        keywords: 搜索关键字，空格分隔多关键字
+    
+    Returns:
+        过滤后的 DataFrame
+    """
+    # 参数校验：关键字为空或列不存在时返回原数据
     if not keywords or column not in df.columns:
         return df
 
     keywords = keywords.strip()
-    # 无空格：普通匹配
+    
+    # 单关键字模式：直接使用 contains 匹配
     if " " not in keywords:
         return df[df[column].fillna("").str.contains(keywords, case=False, regex=True)]
 
-    # 有空格：AND 逻辑
+    # 多关键字模式：AND 逻辑（所有关键字都必须匹配）
+    # 1. 分割关键字
+    # 2. 为每个关键字创建匹配掩码
+    # 3. 使用 all(axis=1) 确保所有条件都满足
     keyword_list = [kw.strip() for kw in keywords.split() if kw.strip()]
     if not keyword_list:
         return df
 
+    # 使用 pd.concat 创建多列掩码，然后 all(axis=1)
     mask = pd.concat([
         df[column].fillna("").str.contains(kw, case=False, regex=True)
         for kw in keyword_list
@@ -298,12 +337,24 @@ async def get_schools(
 
 @app.get("/api/positions/analysis", response_model=PositionAnalysisResponse, tags=["职位"])
 async def get_position_analysis() -> PositionAnalysisResponse:
-    """获取职位分析统计数据。"""
+    """
+    获取职位分析统计数据。
+    
+    统计维度：
+    - 职位类型分布（职务职位）
+    - 职位级别分布（一级/二级/三级/四级主办等）
+    - 隶属关分布
+    
+    Returns:
+        包含各类统计计数的响应
+    """
     df = get_df()
 
-    # 使用解析后的职位字段
+    # 职务职位分布：使用解析后的职务职位字段
     job_type_counts = df["职务职位"].fillna("未知").value_counts().to_dict()
+    # 职位级别分布：从原始职位字段提取级别
     level_counts = df["拟录用职位及代码"].apply(extract_level).value_counts().to_dict()
+    # 隶属关分布：使用解析后的隶属关字段
     sub_district_counts = df["隶属关"].fillna("未知").value_counts().to_dict()
 
     return PositionAnalysisResponse(
@@ -322,21 +373,34 @@ async def get_position_analysis() -> PositionAnalysisResponse:
 async def search(
     name: str | None = Query(default=None, description="姓名关键字"),
     school: str | None = Query(default=None, description="毕业院校关键字"),
-    position: str | None = Query(default=None, description="职位关键字"),
-    district: str | None = Query(default=None, description="关区名称"),
-    education: str | None = Query(default=None, description="学历"),
-    gender: str | None = Query(default=None, description="性别"),
+    position: str | None = Query(default=None, description="职位关键字（支持姓名、院校、职位代码）"),
+    district: str | None = Query(default=None, description="关区名称（精确匹配）"),
+    education: str | None = Query(default=None, description="学历（精确匹配）"),
+    gender: str | None = Query(default=None, description="性别（精确匹配）"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=20, ge=1, le=100, description="每页数量"),
 ) -> SearchResponse:
-    """多条件搜索录用人员信息。"""
+    """
+    多条件搜索录用人员信息。
+    
+    搜索逻辑：
+    - 关键字搜索（name/school/position）：模糊匹配，支持空格分隔多关键字 AND 搜索
+    - 精确匹配（district/education/gender）：完全相等匹配
+    
+    搜索职位时同时匹配：职位名称、隶属关、职位代码
+    
+    Returns:
+        包含分页结果的搜索响应
+    """
     df = get_df()
 
-    # 逐条件过滤
+    # 关键字搜索：支持模糊匹配 + 多关键字 AND
     df = filter_by_keywords(df, "姓名", name or "")
     df = filter_by_keywords(df, "毕业院校", school or "")
+    # 职位搜索使用原始字段（原字段包含隶属关+职位名，可同时搜索）
     df = filter_by_keywords(df, "拟录用职位及代码", position or "")
 
+    # 精确匹配过滤
     if district:
         df = df[df["关区"] == district]
     if education:
@@ -346,7 +410,9 @@ async def search(
 
     # 分页计算
     total = len(df)
+    # 计算总页数，向上取整
     total_pages = max(1, (total + page_size - 1) // page_size)
+    # 确保页码在有效范围内
     page = min(page, total_pages)
     start = (page - 1) * page_size
     page_df = df.iloc[start:start + page_size]
