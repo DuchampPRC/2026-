@@ -213,21 +213,31 @@ def parse_position_field(position_field: str | None) -> dict[str, str]:
         position_main = position_field
 
     # 职位主体 = 隶属关 + 职务职位
-    # 需要从职位主体中提取隶属关（通常以"海关"结尾）
+    # 原始数据中可能有重复的"海关"后缀，需要特殊处理
+    # 例如："XX海关海关业务二级主办..." 应解析为：隶属关="XX海关"，职务职位="海关业务二级主办..."
 
-    # 查找所有可能的隶属关（以"海关"结尾的中文短语）
-    customs_pattern = re.compile(r"[\u4e00-\u9fa5]+海关")
+    # 查找以"海关"结尾的隶属关名称
+    customs_pattern = re.compile(r"([\u4e00-\u9fa5]+)海关")
     matches = list(customs_pattern.finditer(position_main))
 
     if matches:
-        # 取最后一个匹配作为隶属关（因为职位主体中可能包含其他海关名称）
-        # 例如："XX海关 XX职位" 中的 "XX海关"
+        # 取最后一个"XX海关"作为隶属关
         last_match = matches[-1]
-        sub_district = last_match.group()
+        sub_district = last_match.group()  # 如 "上海浦东国际机场海关"
+        
+        # 职务职位从隶属关之后开始
         position_name = position_main[last_match.end():].strip()
+        
+        # 如果职务职位仍然以"海关"开头（这是职位分类名称），保留完整名称
+        # 否则不需要额外处理
     else:
         sub_district = ""
         position_name = position_main
+
+    # 清理可能残留的重复"海关"
+    # 如果隶属关以"海关海关"结尾，修正为"海关"
+    if sub_district.endswith("海关海关"):
+        sub_district = sub_district[:-2]  # 去掉一个"海关"
 
     return {
         "隶属关": sub_district,
