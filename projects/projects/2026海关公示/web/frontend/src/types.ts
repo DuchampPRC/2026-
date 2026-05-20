@@ -48,8 +48,9 @@ export interface SearchItem {
   毕业院校?: string
   学历?: string
   关区?: string
-  职位?: string
-  隶属海关?: string
+  隶属关?: string      // 隶属关名称
+  职务职位?: string   // 职务职位
+  职位代码?: string   // 职位代码
 }
 
 export interface SearchResult {

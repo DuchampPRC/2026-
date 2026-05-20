@@ -134,8 +134,9 @@ class SearchResultItem(BaseModel):
     毕业院校: Optional[str] = Field(default=None, description="毕业院校")
     学历: Optional[str] = Field(default=None, description="学历")
     关区: Optional[str] = Field(default=None, description="关区")
-    职位: Optional[str] = Field(default=None, description="拟录用职位")
-    隶属海关: Optional[str] = Field(default=None, description="隶属海关")
+    隶属关: Optional[str] = Field(default=None, description="隶属关")
+    职务职位: Optional[str] = Field(default=None, description="职务职位")
+    职位代码: Optional[str] = Field(default=None, description="职位代码")
 
 
 class SearchResponse(BaseModel):

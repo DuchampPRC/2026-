@@ -158,3 +158,80 @@ def extract_district_from_filename(filename: str) -> str:
     """
     match = COMPILED_PATTERNS["district"].search(filename)
     return match.group(1) if match else ""
+
+
+# =============================================================================
+# 职位解析
+# =============================================================================
+
+# 职位代码正则（12位数字）
+POSITION_CODE_PATTERN: Final[re.Pattern] = re.compile(r"（(\d{12})）|\((\d{12})\)")
+
+
+def parse_position_field(position_field: str | None) -> dict[str, str]:
+    """
+    解析"拟录用职位及代码"字段。
+
+    字段格式：隶属海关名称 + 职位名称 + （职位代码）
+    例如： 上海浦东国际机场海关海关业务二级主办及以下职位（300110101001）
+
+    Args:
+        position_field: 原始职位字段
+
+    Returns:
+        包含以下键的字典：
+        - 隶属关: 隶属海关名称（如"上海浦东国际机场海关"）
+        - 职务职位: 职位名称（如"海关业务二级主办及以下职位"）
+        - 职位代码: 职位代码（如"300110101001"）
+        - 原始值: 原始字段（保留）
+
+    Example:
+        >>> parse_position_field("上海浦东国际机场海关海关业务二级主办及以下职位（300110101001）")
+        {
+            "隶属关": "上海浦东国际机场海关",
+            "职务职位": "海关业务二级主办及以下职位",
+            "职位代码": "300110101001",
+            "原始值": "上海浦东国际机场海关海关业务二级主办及以下职位（300110101001）"
+        }
+    """
+    if not position_field:
+        return {
+            "隶属关": "",
+            "职务职位": "",
+            "职位代码": "",
+            "原始值": ""
+        }
+
+    # 提取职位代码
+    code_match = POSITION_CODE_PATTERN.search(position_field)
+    position_code = code_match.group(1) or code_match.group(2) if code_match else ""
+
+    # 移除代码部分，获取职位主体
+    if code_match:
+        position_main = position_field[:code_match.start()].strip()
+    else:
+        position_main = position_field
+
+    # 职位主体 = 隶属关 + 职务职位
+    # 需要从职位主体中提取隶属关（通常以"海关"结尾）
+
+    # 查找所有可能的隶属关（以"海关"结尾的中文短语）
+    customs_pattern = re.compile(r"[\u4e00-\u9fa5]+海关")
+    matches = list(customs_pattern.finditer(position_main))
+
+    if matches:
+        # 取最后一个匹配作为隶属关（因为职位主体中可能包含其他海关名称）
+        # 例如："XX海关 XX职位" 中的 "XX海关"
+        last_match = matches[-1]
+        sub_district = last_match.group()
+        position_name = position_main[last_match.end():].strip()
+    else:
+        sub_district = ""
+        position_name = position_main
+
+    return {
+        "隶属关": sub_district,
+        "职务职位": position_name,
+        "职位代码": position_code,
+        "原始值": position_field
+    }

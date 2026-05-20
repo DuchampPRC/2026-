@@ -242,7 +242,7 @@ function SearchPanel({ onSearch, filters, onFilterChange }: { onSearch: () => vo
   return (
     <div>
       <div className="filter-row">
-        {[['name', '姓名'], ['school', '毕业院校'], ['position', '职位']].map(([k, label]) => (
+        {[['name', '姓名'], ['school', '毕业院校'], ['position', '职务/代码']].map(([k, label]) => (
           <input 
             key={k} 
             type="text" 
@@ -676,8 +676,9 @@ function AppContent() {
                           <th>毕业院校</th>
                           <th style={{ width: '80px' }}>学历</th>
                           <th>关区</th>
-                          <th>职位</th>
-                          <th>隶属海关</th>
+                          <th>隶属关</th>
+                          <th>职务职位</th>
+                          <th>职位代码</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -695,8 +696,9 @@ function AppContent() {
                                 {item.关区 ?? '-'}
                               </span>
                             </td>
-                            <td>{highlightText(item.职位, filters.position)}</td>
-                            <td>{item.隶属海关 ?? '-'}</td>
+                            <td>{highlightText(item.隶属关, filters.position)}</td>
+                            <td>{highlightText(item.职务职位, filters.position)}</td>
+                            <td className="code-cell">{item.职位代码 ?? '-'}</td>
                           </tr>
                         ))}
                       </tbody>

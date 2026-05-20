@@ -16,7 +16,39 @@ from customs_pipeline.config import (
     get_temp_docx_dir,
 )
 from customs_pipeline.converter import convert_doc_to_docx
-from customs_pipeline.constants import extract_district_from_filename
+from customs_pipeline.constants import (
+    classify_school,
+    extract_district_from_filename,
+    parse_position_field,
+)
+
+# =============================================================================
+# Types
+# =============================================================================
+
+@dataclass
+class Record:
+    """单条公示记录。"""
+    关区: str
+    姓名: str
+    性别: str
+    准考证号: str
+    学历: str
+    毕业院校: str
+    工作单位: str
+    职位代码: str = ""
+    隶属关: str = ""
+    职务职位: str = ""
+    原始职位: str = ""
+    高校分类: str = ""
+
+    def __post_init__(self):
+        """解析职位字段。"""
+        if not self.职位代码:
+            parsed = parse_position_field(self.原始职位)
+            self.职位代码 = parsed["职位代码"]
+            self.隶属关 = parsed["隶属关"]
+            self.职务职位 = parsed["职务职位"]
 
 # =============================================================================
 # Constants

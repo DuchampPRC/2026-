@@ -24,6 +24,7 @@ from customs_pipeline.constants import (
     classify_school,
     extract_level,
     get_district_url,
+    parse_position_field,
 )
 from schemas import (
     DistrictsResponse,
@@ -48,6 +49,9 @@ from schemas import (
 # Path Configuration
 # =============================================================================
 
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 BASE_DIR = Path(__file__).parent
 DIST_DIR = BASE_DIR / "frontend" / "dist"
 CSV_PATH = BASE_DIR / ".." / "output" / "2026" / "2026海关公示汇总.csv"
@@ -71,7 +75,7 @@ def get_df() -> pd.DataFrame:
 
 
 def _load_csv() -> pd.DataFrame:
-    """加载 CSV 文件并返回 DataFrame。"""
+    """加载 CSV 文件并返回 DataFrame，解析职位代码。"""
     if not CSV_PATH.exists():
         raise FileNotFoundError(f"数据文件不存在: {CSV_PATH}")
 
@@ -82,6 +86,13 @@ def _load_csv() -> pd.DataFrame:
     missing_columns = required_columns - set(df.columns)
     if missing_columns:
         raise ValueError(f"数据缺少必需列: {missing_columns}")
+
+    # 解析职位代码：隶属关 + 职务职位 + 职位代码
+    from customs_pipeline.constants import parse_position_field
+    parsed = df["拟录用职位及代码"].apply(parse_position_field)
+    df["隶属关"] = parsed.apply(lambda x: x["隶属关"])
+    df["职务职位"] = parsed.apply(lambda x: x["职务职位"])
+    df["职位代码"] = parsed.apply(lambda x: x["职位代码"])
 
     return df
 
@@ -290,12 +301,13 @@ async def get_position_analysis() -> PositionAnalysisResponse:
     """获取职位分析统计数据。"""
     df = get_df()
 
-    job_type_counts = df["拟录用职位及代码"].fillna("未知").value_counts().to_dict()
+    # 使用解析后的职位字段
+    job_type_counts = df["职务职位"].fillna("未知").value_counts().to_dict()
     level_counts = df["拟录用职位及代码"].apply(extract_level).value_counts().to_dict()
-    sub_district_counts = df["关区"].value_counts().to_dict()
+    sub_district_counts = df["隶属关"].fillna("未知").value_counts().to_dict()
 
     return PositionAnalysisResponse(
-        total_positions=ensure_int(len(df["拟录用职位及代码"].unique())),
+        total_positions=ensure_int(len(df["职务职位"].unique())),
         job_type_counts={k: ensure_int(v) for k, v in job_type_counts.items()},
         level_counts={k: ensure_int(v) for k, v in level_counts.items()},
         sub_district_counts={k: ensure_int(v) for k, v in sub_district_counts.items()},
@@ -339,18 +351,22 @@ async def search(
     start = (page - 1) * page_size
     page_df = df.iloc[start:start + page_size]
 
-    items = [
-        SearchResultItem(
-            姓名=row.get("姓名", ""),
-            性别=row.get("性别"),
-            毕业院校=row.get("毕业院校"),
-            学历=row.get("学历"),
-            关区=row.get("关区"),
-            职位=row.get("拟录用职位及代码"),
-            隶属海关=row.get("隶属海关"),
+    items = []
+    for row in page_df.to_dict("records"):
+        position = row.get("拟录用职位及代码", "")
+        parsed = parse_position_field(position)
+        items.append(
+            SearchResultItem(
+                姓名=row.get("姓名", ""),
+                性别=row.get("性别"),
+                毕业院校=row.get("毕业院校"),
+                学历=row.get("学历"),
+                关区=row.get("关区"),
+                隶属关=parsed.get("隶属关", ""),
+                职务职位=parsed.get("职务职位", ""),
+                职位代码=parsed.get("职位代码", ""),
+            )
         )
-        for row in page_df.to_dict("records")
-    ]
 
     return SearchResponse(
         items=items,
