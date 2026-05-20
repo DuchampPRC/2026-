@@ -5,6 +5,7 @@
 
 import csv
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -113,10 +114,18 @@ def match_column(header: str, target: str) -> bool:
 
 
 def find_header_row(table) -> tuple[int, list[str]]:
-    """在表格中找到表头行。"""
-    for i, row in enumerate(table.rows[:4]):  # 只检查前4行
+    """在表格中找到表头行。
+    
+    策略：
+    1. 如果某行包含"姓名"列，直接使用（表头行或数据行）
+    2. 否则要求至少3个关键词匹配
+    """
+    for i, row in enumerate(table.rows[:10]):  # 检查前10行（可能有多行表头）
         cells = [normalize_header(cell.text) for cell in row.cells]
-        # 计算匹配关键词数量
+        # 方案1：包含"姓名"列的就是有效数据行
+        if any('姓名' in c for c in cells):
+            return i, [cell.text.strip() for cell in row.cells]
+        # 方案2：至少3个关键词匹配
         score = sum(1 for kw in HEADER_KEYWORDS if any(kw in c for c in cells))
         if score >= 3:
             return i, [cell.text.strip() for cell in row.cells]
@@ -162,22 +171,40 @@ def get_cell_value(row, col_idx: int, default: str = '') -> str:
 # =============================================================================
 
 def parse_docx(docx_path: Path, district: str) -> list[dict]:
-    """解析单个 docx 文件并提取数据。"""
+    """解析单个 docx 文件并提取数据。
+    
+    支持一个文件中有多个表格的情况。
+    如果后续表格没有表头，会复用第一个表格的列映射。
+    """
     from docx import Document
 
     doc = Document(docx_path)
     results = []
+    
+    # 记录第一个有效表格的列映射
+    first_col_map = None
 
     for table in doc.tables:
         idx, headers = find_header_row(table)
-        if idx == -1:
+        
+        if idx >= 0:
+            # 有表头的表格
+            col_map = build_column_map(headers)
+            if 'name' not in col_map:
+                continue
+            # 保存第一个表格的列映射
+            if first_col_map is None:
+                first_col_map = col_map
+            start_idx = idx + 1
+        elif first_col_map is not None:
+            # 没有表头但有已知的列映射，复用
+            col_map = first_col_map
+            start_idx = 0
+        else:
+            # 没有表头也没有已知的列映射，跳过
             continue
 
-        col_map = build_column_map(headers)
-        if 'name' not in col_map:
-            continue
-
-        for row in table.rows[idx + 1:]:
+        for row in table.rows[start_idx:]:
             name = get_cell_value(row, col_map.get('name', 0))
             if should_skip_name(name):
                 continue
@@ -258,7 +285,7 @@ def build_csv(
 
     # 收集 docx 文件
     docx_files = list(docx_dir.glob('*.docx'))
-    doc_files = list(input_dir.glob('*.doc')) - list(input_dir.glob('*.docx'))
+    doc_files = set(input_dir.glob('*.doc')) - set(input_dir.glob('*.docx'))
 
     if not docx_files and doc_files:
         print(f"\n发现 {len(doc_files)} 个 .doc 文件，但没有可解析的 .docx 文件。")
